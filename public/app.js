@@ -150,7 +150,34 @@ function render() {
   }));
 }
 
+function renderApiUsage(usage) {
+  const el = $("#apiUsage");
+  if (!el) return;
+  if (!usage) { el.classList.add("hidden"); el.innerHTML = ""; return; }
+
+  const labels = {
+    trendyol: "Trendyol",
+    hepsiburada: "Hepsiburada",
+    n11: "n11",
+    amazon: "Amazon Türkiye"
+  };
+  const parts = Object.entries(usage.stores || {}).map(([store, u]) => {
+    const label = labels[store] || store;
+    if (u.cached) return `<span><b>${label}</b> önbellekten · 0 kredi</span>`;
+    if (store === "amazon") return `<span><b>${label}</b> · ${Number(u.brightDataRecords || 0)} kayıt</span>`;
+    return `<span><b>${label}</b> · ${Number(u.reefCredits || 0)} Reef kredisi</span>`;
+  });
+
+  el.innerHTML = `
+    <div class="api-usage-title">⚙️ Bu aramada API kullanımı</div>
+    <div class="api-usage-items">${parts.join("")}</div>
+    <div class="api-usage-total">ReefAPI toplam: <b>${Number(usage.totalReefCredits || 0)}</b> kredi · Bright Data teslim edilen kayıt: <b>${Number(usage.totalBrightDataRecords || 0)}</b></div>
+  `;
+  el.classList.remove("hidden");
+}
+
 function showLoading(q) {
+  renderApiUsage(null);
   $("#sectionTitle").textContent = `🔎 "${q}" aranıyor`;
   $("#resultCount").textContent = "• mağazalar kontrol ediliyor...";
   $("#grid").innerHTML = `<div class="loading-grid"><div class="loading-spinner"></div><span>Trendyol, Hepsiburada, n11, MediaMarkt, Teknosa, Vatan ve Amazon Türkiye aranıyor…</span></div>`;
@@ -198,6 +225,7 @@ async function searchProducts(q) {
     };
     renderStoreCounts();
     render();
+    renderApiUsage(j.usage);
 
     const errors = Object.values(j.errors || {});
     if (errors.length === 3) toast("Mağazalardan veri alınamadı. ReefAPI bağlantısını kontrol et.");
@@ -206,6 +234,7 @@ async function searchProducts(q) {
     if (e.name === "AbortError") return;
     if (myId !== state.requestId) return;
     state.allProducts = [];
+    renderApiUsage(null);
     $("#resultCount").textContent = "";
     $("#grid").innerHTML = `<div class="empty-grid"><div><b>Arama sırasında hata oluştu.</b><br><span>${esc(e.message)}</span></div></div>`;
   } finally {

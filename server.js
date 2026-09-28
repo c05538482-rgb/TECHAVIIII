@@ -170,6 +170,17 @@ async function reef(path, body) {
       const msg = json?.error?.message || json?.error || `ReefAPI HTTP ${r.status}`;
       throw new Error(String(msg));
     }
+    const charged = Number(
+      json?.meta?.charged_credits ??
+      json?.meta?.credits_charged ??
+      json?.meta?.credits ??
+      json?.charged_credits ??
+      0
+    );
+    Object.defineProperty(json, "__reefCredits", {
+      value: Number.isFinite(charged) && charged > 0 ? charged : 0,
+      enumerable: false
+    });
     return json;
   } finally {
     clearTimeout(timeout);
@@ -301,6 +312,10 @@ async function getN11Detail(x) {
 
     const detail = response?.data?.product || response?.data?.data || response?.data || null;
     if (!detail || typeof detail !== "object") return null;
+    Object.defineProperty(detail, "__reefCredits", {
+      value: Number(response?.__reefCredits || 0),
+      enumerable: false
+    });
 
     const basketPrice = extractN11BasketPrice(detail);
     // Store the resolved shopper price under a private normalized field so the
@@ -342,6 +357,8 @@ async function enrichN11Rows(rows) {
   }
 
   await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  const detailCredits = enriched.reduce((sum, row) => sum + Number(row?.__reefCredits || 0), 0);
+  Object.defineProperty(enriched, "__reefCredits", { value: detailCredits, enumerable: false });
   return enriched;
 }
 
@@ -681,7 +698,18 @@ function normalizeStoreRow(store, x) {
 async function searchStore(store, query) {
   const key = cacheKey(store, query);
   const cached = await getCache(key);
-  if (cached) return { ...cached, cached: true };
+  if (cached) {
+    return {
+      ...cached,
+      cached: true,
+      usage: {
+        provider: store === "amazon" ? "Bright Data" : "ReefAPI",
+        reefCredits: 0,
+        brightDataRecords: 0,
+        cached: true
+      }
+    };
+  }
 
   let response;
   if (store === "trendyol") {
@@ -726,6 +754,8 @@ async function searchStore(store, query) {
     rows = await enrichN11Rows(rows);
   }
 
+  const reefCredits = store === "amazon" ? 0 : Number(response?.__reefCredits || 0) + Number(rows?.__reefCredits || 0);
+  const brightDataRecords = store === "amazon" ? rows.length : 0;
   const result = {
     store,
     count: Number(
@@ -734,6 +764,12 @@ async function searchStore(store, query) {
       rows.length
     ) || rows.length,
     products: rows.map(x => normalizeStoreRow(store, x)),
+    usage: {
+      provider: store === "amazon" ? "Bright Data" : "ReefAPI",
+      reefCredits,
+      brightDataRecords,
+      cached: false
+    },
     fetchedAt: new Date().toISOString()
   };
   await setCache(key, result);
@@ -970,12 +1006,16 @@ app.get("/api/search", async (req, res) => {
   });
 
   const products = Object.values(results).flatMap(x => x.products);
+  const usage = Object.fromEntries(Object.entries(results).map(([store, value]) => [store, value.usage || { reefCredits: 0, brightDataRecords: 0, cached: Boolean(value.cached) }]));
+  const totalReefCredits = Object.values(usage).reduce((sum, x) => sum + Number(x.reefCredits || 0), 0);
+  const totalBrightDataRecords = Object.values(usage).reduce((sum, x) => sum + Number(x.brightDataRecords || 0), 0);
   res.json({
     ok: true,
     query,
     stores: results,
     errors,
-    products
+    products,
+    usage: { stores: usage, totalReefCredits, totalBrightDataRecords }
   });
 });
 

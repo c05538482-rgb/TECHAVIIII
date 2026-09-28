@@ -87,3 +87,19 @@ body.modal-open{overflow:hidden}
   .alarm-form{grid-template-columns:1fr}
   .alarm-form button#saveAlarm{width:100%}
 }
+
+
+.api-usage {
+  margin: 0 0 18px;
+  padding: 12px 16px;
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 14px;
+  background: rgba(20,24,32,.72);
+  color: #cbd5e1;
+  font-size: 12px;
+}
+.api-usage-title { font-weight: 800; margin-bottom: 8px; color: #fff; }
+.api-usage-items { display: flex; flex-wrap: wrap; gap: 7px; }
+.api-usage-items span { padding: 6px 9px; border-radius: 9px; background: rgba(255,255,255,.055); }
+.api-usage-total { margin-top: 8px; opacity: .82; }
+.api-usage.hidden { display: none; }

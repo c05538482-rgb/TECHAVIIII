@@ -772,16 +772,24 @@ async function searchStore(store, query) {
   }
 
   const reefCredits = store === "amazon" ? 0 : Number(response?.__reefCredits || 0) + Number(rows?.__reefCredits || 0);
-  // Amazon Bright Data job is requested with a 2-result limit; keep a hard cap as a safety net.
+
+  // Cost optimization: Trendyol search already uses the minimum one page.
+  // Keep only the first 10 live rows for the UI so we do not process/render
+  // unnecessary catalog rows, while preserving the provider's headline count.
+  if (store === "trendyol" && rows.length > 10) rows = rows.slice(0, 10);
+
+  // Amazon Bright Data job is requested with a 20-result limit; keep a hard cap as a safety net.
   if (store === "amazon" && rows.length > 20) rows = rows.slice(0, 20);
   const brightDataRecords = store === "amazon" ? rows.length : 0;
+  const rawTotalCount = Number(
+    response?.meta?.total_count ??
+    response?.data?.total_count ??
+    rows.length
+  ) || rows.length;
   const result = {
     store,
-    count: Number(
-      response?.meta?.total_count ??
-      response?.data?.total_count ??
-      rows.length
-    ) || rows.length,
+    count: store === "trendyol" ? Math.min(rawTotalCount, 10000) : rawTotalCount,
+    rawTotalCount,
     products: rows.map(x => normalizeStoreRow(store, x)),
     usage: {
       provider: store === "amazon" ? "Bright Data" : "ReefAPI",
@@ -791,7 +799,7 @@ async function searchStore(store, query) {
     },
     fetchedAt: new Date().toISOString()
   };
-  await setCache(key, result);
+  await setCache(key, result, store === "trendyol" ? 60 * 60 : CACHE_TTL);
   return { ...result, cached: false };
 }
 

@@ -480,63 +480,79 @@ async function brightDataAmazonSearch(query) {
   const apiKey = process.env.BRIGHTDATA_API_KEY;
   if (!apiKey) throw new Error("BRIGHTDATA_API_KEY eksik");
 
-  // Bright Data Amazon Product Search scraper:
-  // gd_lwdb4vjm1ehb499uxs accepts { keyword, url, pages_to_search }.
-  const triggerUrl =
-    "https://api.brightdata.com/datasets/v3/trigger" +
-    "?dataset_id=gd_lwdb4vjm1ehb499uxs&format=json&uncompressed_webhook=true";
-
-  const trigger = await fetch(triggerUrl, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify([{
-      keyword: String(query).trim(),
-      url: "https://www.amazon.com.tr",
-      pages_to_search: 1
-    }])
-  });
+  const trigger = await fetch(
+    "https://api.brightdata.com/datasets/v3/trigger?dataset_id=gd_lwdb4vjm1ehb499uxs&format=json&uncompressed_webhook=true",
+    {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify([{
+        keyword: String(query).trim(),
+        url: "https://www.amazon.com.tr",
+        pages_to_search: 1
+      }])
+    }
+  );
 
   const triggerJson = await trigger.json().catch(() => ({}));
-
   if (!trigger.ok || !triggerJson.snapshot_id) {
-    const msg = triggerJson?.error || triggerJson?.message ||
-      `Bright Data Amazon Search HTTP ${trigger.status}`;
-    throw new Error(String(msg));
+    throw new Error(String(
+      triggerJson?.error ||
+      triggerJson?.message ||
+      `Bright Data Amazon Search HTTP ${trigger.status}`
+    ));
   }
 
   const snapshotId = String(triggerJson.snapshot_id);
   const deadline = Date.now() + 90000;
 
   while (Date.now() < deadline) {
-    const snapshot = await fetch(
-      `https://api.brightdata.com/datasets/v3/snapshot/${encodeURIComponent(snapshotId)}?format=json`,
+    const progress = await fetch(
+      `https://api.brightdata.com/datasets/v3/progress/${encodeURIComponent(snapshotId)}`,
       {
-        headers: {
-          "Authorization": `Bearer ${apiKey}`
-        }
+        headers: { "Authorization": `Bearer ${apiKey}` }
       }
     );
 
-    if (snapshot.status === 202) {
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      continue;
+    const progressJson = await progress.json().catch(() => ({}));
+    const status = String(progressJson.status || "running");
+
+    if (["failed", "error", "cancelled"].includes(status)) {
+      throw new Error(`Bright Data Amazon araması ${status} durumunda.`);
     }
 
-    const data = await snapshot.json().catch(() => null);
+    if (status === "ready") break;
 
-    if (!snapshot.ok) {
-      const msg = data?.error || data?.message ||
-        `Bright Data Amazon Search sonuç HTTP ${snapshot.status}`;
-      throw new Error(String(msg));
-    }
-
-    return Array.isArray(data) ? data : [];
+    await new Promise(resolve => setTimeout(resolve, 2500));
   }
 
-  throw new Error("Bright Data Amazon araması zaman aşımına uğradı.");
+  const progress = await fetch(
+    `https://api.brightdata.com/datasets/v3/progress/${encodeURIComponent(snapshotId)}`,
+    { headers: { "Authorization": `Bearer ${apiKey}` } }
+  );
+  const progressJson = await progress.json().catch(() => ({}));
+
+  if (String(progressJson.status || "") !== "ready") {
+    throw new Error("Amazon araması zaman aşımına uğradı.");
+  }
+
+  const snapshot = await fetch(
+    `https://api.brightdata.com/datasets/v3/snapshot/${encodeURIComponent(snapshotId)}?format=json`,
+    { headers: { "Authorization": `Bearer ${apiKey}` } }
+  );
+
+  const data = await snapshot.json().catch(() => null);
+  if (!snapshot.ok) {
+    throw new Error(String(
+      data?.error ||
+      data?.message ||
+      `Bright Data Amazon sonuç HTTP ${snapshot.status}`
+    ));
+  }
+
+  return Array.isArray(data) ? data : [];
 }
 
 function normalizeStoreRow(store, x) {
@@ -708,13 +724,15 @@ async function searchStore(store, query) {
   // completely untouched.
   if (store === "n11") {
     rows = await enrichN11Rows(rows);
-  } else if (store === "trendyol") {
-    rows = await enrichTrendyolRows(rows);
   }
 
   const result = {
     store,
-    count: Number(response?.meta?.total_count ?? response?.data?.total_count ?? rows.length) || rows.length,
+    count: Number(
+      response?.meta?.total_count ??
+      response?.data?.total_count ??
+      rows.length
+    ) || rows.length,
     products: rows.map(x => normalizeStoreRow(store, x)),
     fetchedAt: new Date().toISOString()
   };
@@ -940,7 +958,7 @@ app.get("/api/search", async (req, res) => {
   const query = normalizeQuery(req.query.q);
   if (query.length < 2) return res.status(400).json({ ok: false, error: "En az 2 karakter yaz." });
 
-  const stores = ["trendyol", "hepsiburada", "n11", "mediamarkt", "teknosa", "vatan", "amazon", "pazarama", "ciceksepeti"];
+  const stores = ["trendyol", "hepsiburada", "n11", "amazon"];
   const settled = await Promise.allSettled(stores.map(s => searchStore(s, query)));
   const results = {};
   const errors = {};

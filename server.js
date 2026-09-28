@@ -335,30 +335,41 @@ async function getN11Detail(x) {
 async function enrichN11Rows(rows) {
   if (!rows.length) return rows;
 
-  // ReefAPI maliyetini kontrol altında tutmak için yalnızca ilk 5 n11
-  // sonucunda detay sorgusu yapıyoruz. Arama sonucu zaten ürün fiyatını
-  // taşıyorsa ekstra API çağrısı yapılmıyor. Diğer ürünler arama verisiyle
-  // aynen gösteriliyor.
-  const limit = Math.min(5, rows.length);
-  const targetRows = rows.slice(0, limit);
-  const enriched = rows.slice();
+  const enriched = new Array(rows.length);
   let next = 0;
-  const workerCount = Math.min(4, targetRows.length);
+  const workerCount = Math.min(4, rows.length);
 
   async function worker() {
     while (true) {
       const index = next++;
-      if (index >= targetRows.length) return;
+      if (index >= rows.length) return;
 
-      const row = targetRows[index];
+      const row = rows[index];
       const existingBasket = extractN11BasketPrice(row);
       if (existingBasket != null) {
         enriched[index] = { ...row, __n11_basket_price: existingBasket };
         continue;
       }
 
+      // Only enrich the first 5 n11 rows. This keeps the live basket-price
+      // check useful without spending a ReefAPI detail call on every result.
+      if (index >= 5) {
+        enriched[index] = row;
+        continue;
+      }
+
       const detail = await getN11Detail(row);
-      enriched[index] = detail ? { ...row, ...detail } : row;
+      if (detail) {
+        const detailCredits = Number(detail?.__reefCredits || 0);
+        const merged = { ...row, ...detail };
+        Object.defineProperty(merged, "__reefCredits", {
+          value: detailCredits,
+          enumerable: false
+        });
+        enriched[index] = merged;
+      } else {
+        enriched[index] = row;
+      }
     }
   }
 

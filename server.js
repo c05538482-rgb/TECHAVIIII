@@ -335,16 +335,22 @@ async function getN11Detail(x) {
 async function enrichN11Rows(rows) {
   if (!rows.length) return rows;
 
-  const enriched = new Array(rows.length);
+  // ReefAPI maliyetini kontrol altında tutmak için yalnızca ilk 5 n11
+  // sonucunda detay sorgusu yapıyoruz. Arama sonucu zaten ürün fiyatını
+  // taşıyorsa ekstra API çağrısı yapılmıyor. Diğer ürünler arama verisiyle
+  // aynen gösteriliyor.
+  const limit = Math.min(5, rows.length);
+  const targetRows = rows.slice(0, limit);
+  const enriched = rows.slice();
   let next = 0;
-  const workerCount = Math.min(4, rows.length);
+  const workerCount = Math.min(4, targetRows.length);
 
   async function worker() {
     while (true) {
       const index = next++;
-      if (index >= rows.length) return;
+      if (index >= targetRows.length) return;
 
-      const row = rows[index];
+      const row = targetRows[index];
       const existingBasket = extractN11BasketPrice(row);
       if (existingBasket != null) {
         enriched[index] = { ...row, __n11_basket_price: existingBasket };

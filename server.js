@@ -498,7 +498,7 @@ async function brightDataAmazonSearch(query) {
   if (!apiKey) throw new Error("BRIGHTDATA_API_KEY eksik");
 
   const trigger = await fetch(
-    "https://api.brightdata.com/datasets/v3/trigger?dataset_id=gd_lwdb4vjm1ehb499uxs&format=json&uncompressed_webhook=true",
+    "https://api.brightdata.com/datasets/v3/trigger?dataset_id=gd_lwdb4vjm1ehb499uxs&format=json&uncompressed_webhook=true&limit_multiple_results=20",
     {
       method: "POST",
       headers: {
@@ -755,6 +755,8 @@ async function searchStore(store, query) {
   }
 
   const reefCredits = store === "amazon" ? 0 : Number(response?.__reefCredits || 0) + Number(rows?.__reefCredits || 0);
+  // Amazon Bright Data job is requested with a 2-result limit; keep a hard cap as a safety net.
+  if (store === "amazon" && rows.length > 20) rows = rows.slice(0, 20);
   const brightDataRecords = store === "amazon" ? rows.length : 0;
   const result = {
     store,

@@ -1027,21 +1027,41 @@ app.get("/api/search", async (req, res) => {
   const query = normalizeQuery(req.query.q);
   if (query.length < 2) return res.status(400).json({ ok: false, error: "En az 2 karakter yaz." });
 
-  const stores = ["trendyol", "hepsiburada", "n11", "mediamarkt", "teknosa", "vatan", "amazon", "pazarama", "ciceksepeti", "boyner"];
-  const settled = await Promise.allSettled(stores.map(s => searchStore(s, query)));
+  // ReefAPI mağazalarını küçük gruplar halinde çalıştırıyoruz. Böylece 10 mağazayı
+  // aynı anda ateşleyip rate-limit / bağlantı yarışına girmiyoruz. Amazon ayrı kalır.
+  const stores = [
+    "trendyol", "hepsiburada", "n11", "mediamarkt", "teknosa", "vatan",
+    "amazon", "pazarama", "ciceksepeti", "boyner", "boyner"
+  ];
   const results = {};
   const errors = {};
 
-  settled.forEach((r, i) => {
-    const store = stores[i];
-    if (r.status === "fulfilled") results[store] = r.value;
-    else errors[store] = r.reason?.message || "Arama başarısız";
-  });
+  const runBatch = async (batch) => {
+    const settled = await Promise.allSettled(batch.map(s => searchStore(s, query)));
+    settled.forEach((r, i) => {
+      const store = batch[i];
+      if (r.status === "fulfilled") results[store] = r.value;
+      else {
+        errors[store] = r.reason?.message || "Arama başarısız";
+        console.error(`[SEARCH][${store}]`, r.reason);
+      }
+    });
+  };
 
-  const products = Object.values(results).flatMap(x => x.products);
-  const usage = Object.fromEntries(Object.entries(results).map(([store, value]) => [store, value.usage || { reefCredits: 0, brightDataRecords: 0, cached: Boolean(value.cached) }]));
+  // 3 Reef çağrısı + Amazon. Sonra kalan Reef çağrıları 3'erli gruplar halinde.
+  await runBatch(["trendyol", "hepsiburada", "n11", "amazon"]);
+  await runBatch(["mediamarkt", "teknosa", "vatan"]);
+  await runBatch(["pazarama", "ciceksepeti", "boyner"]);
+
+  const products = Object.values(results).flatMap(x => x.products || []);
+  const usage = Object.fromEntries(
+    Object.entries(results).map(([store, value]) => [
+      store, value.usage || { reefCredits: 0, brightDataRecords: 0, cached: Boolean(value.cached) }
+    ])
+  );
   const totalReefCredits = Object.values(usage).reduce((sum, x) => sum + Number(x.reefCredits || 0), 0);
   const totalBrightDataRecords = Object.values(usage).reduce((sum, x) => sum + Number(x.brightDataRecords || 0), 0);
+
   res.json({
     ok: true,
     query,

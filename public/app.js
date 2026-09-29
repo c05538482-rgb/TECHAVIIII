@@ -62,8 +62,7 @@ function storeName(s) {
     vatan:"Vatan Bilgisayar",
     amazon:"Amazon Türkiye",
     pazarama:"Pazarama",
-    ciceksepeti:"Çiçeksepeti",
-    boyner:"Boyner"
+    ciceksepeti:"Çiçeksepeti"
   }[String(s).toLowerCase()] || s || "Mağaza");
 }
 function storeKey(s) {
@@ -77,9 +76,23 @@ function storeKey(s) {
   if (x.includes("amazon")) return "amazon";
   if (x.includes("pazarama")) return "pazarama";
   if (x.includes("ciceksepeti") || x.includes("çiçeksepeti")) return "ciceksepeti";
+  return x;
+}
+function storeKey(s) {
+  const x = String(s || "").toLowerCase();
+  if (x.includes("trendyol")) return "trendyol";
+  if (x.includes("hepsiburada")) return "hepsiburada";
+  if (x === "n11" || x.includes("n11")) return "n11";
+  if (x.includes("mediamarkt")) return "mediamarkt";
+  if (x.includes("teknosa")) return "teknosa";
+  if (x.includes("vatan")) return "vatan";
+  if (x.includes("amazon")) return "amazon";
+  if (x.includes("pazarama")) return "pazarama";
+  if (x.includes("ciceksepeti") || x.includes("çiçeksepeti")) return "ciceksepeti";
   if (x.includes("boyner") || x.includes("morhipo")) return "boyner";
   return x;
 }
+
 function renderCard(p) {
   const id = String(p.id || p.product_id || `${p.store}-${p.title}`);
   const d = discount(p);
@@ -149,7 +162,10 @@ function renderApiUsage(usage) {
     trendyol: "Trendyol",
     hepsiburada: "Hepsiburada",
     n11: "n11",
-    amazon: "Amazon Türkiye"
+    amazon: "Amazon Türkiye",
+    pazarama: "Pazarama",
+    ciceksepeti: "Çiçeksepeti",
+    boyner: "Boyner"
   };
   const parts = Object.entries(usage.stores || {}).map(([store, u]) => {
     const label = labels[store] || store;
@@ -170,7 +186,7 @@ function showLoading(q) {
   renderApiUsage(null);
   $("#sectionTitle").textContent = `🔎 "${q}" aranıyor`;
   $("#resultCount").textContent = "• mağazalar kontrol ediliyor...";
-  $("#grid").innerHTML = `<div class="loading-grid"><div class="loading-spinner"></div><span>Trendyol, Hepsiburada, n11, MediaMarkt, Teknosa, Vatan, Amazon Türkiye, Pazarama, Çiçeksepeti ve Boyner aranıyor…</span></div>`;
+  $("#grid").innerHTML = `<div class="loading-grid"><div class="loading-spinner"></div><span>Trendyol, Hepsiburada, n11, MediaMarkt, Teknosa, Vatan ve Amazon Türkiye aranıyor…</span></div>`;
 }
 
 async function searchProducts(q) {

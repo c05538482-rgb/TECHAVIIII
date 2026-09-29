@@ -1027,7 +1027,7 @@ app.get("/api/search", async (req, res) => {
   const query = normalizeQuery(req.query.q);
   if (query.length < 2) return res.status(400).json({ ok: false, error: "En az 2 karakter yaz." });
 
-  const stores = ["trendyol", "hepsiburada", "n11", "amazon"];
+  const stores = ["trendyol", "hepsiburada", "n11", "mediamarkt", "teknosa", "vatan", "amazon", "pazarama", "ciceksepeti", "boyner"];
   const settled = await Promise.allSettled(stores.map(s => searchStore(s, query)));
   const results = {};
   const errors = {};

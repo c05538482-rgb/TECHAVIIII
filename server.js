@@ -652,6 +652,10 @@ function normalizeStoreRow(store, x) {
     price = firstNumber(x?.price, x?.basket_price);
     original = firstNumber(x?.price_before_discount, x?.price_outside_basket);
     discount = num(x?.discount_percent ?? x?.discount);
+  } else if (store === "boyner") {
+    price = firstNumber(x?.price, x?.current_price, x?.sale_price, x?.discounted_price, x?.final_price);
+    original = firstNumber(x?.original_price, x?.list_price, x?.old_price, x?.initial_price);
+    discount = num(x?.discount_percent ?? x?.discount);
   } else {
     if (store === "trendyol" && x?.__trendyol_plus_price != null) {
       // ONLY override the Trendyol price when ReefAPI explicitly exposed a
@@ -747,6 +751,8 @@ async function searchStore(store, query) {
     response = await reef("/pazarama/v1/search", { query, page: 1 });
   } else if (store === "ciceksepeti") {
     response = await reef("/ciceksepeti/v1/search", { query, page: 1 });
+  } else if (store === "boyner") {
+    response = await reef("/boyner/v1/search", { query, page: 1 });
   } else {
     throw new Error("Desteklenmeyen mağaza");
   }
@@ -1119,7 +1125,9 @@ app.post("/api/alarms", requireAuth, async (req, res) => {
     "Amazon": "amazon",
     "Amazon Türkiye": "amazon",
     "Pazarama": "pazarama",
-    "Çiçeksepeti": "ciceksepeti"
+    "Çiçeksepeti": "ciceksepeti",
+    "Boyner": "boyner",
+    "Morhipo": "boyner"
   };
   const rawStore = String(req.body.store || "").trim();
   const store = storeAliases[rawStore] || rawStore.toLowerCase();
@@ -1128,7 +1136,7 @@ app.post("/api/alarms", requireAuth, async (req, res) => {
   const productId = String(req.body.productId || "").trim();
   const target = num(req.body.targetPrice);
 
-  if (!["trendyol", "hepsiburada", "n11", "mediamarkt", "teknosa", "vatan", "amazon", "pazarama", "ciceksepeti"].includes(store) || !title || !target || target <= 0) {
+  if (!["trendyol", "hepsiburada", "n11", "mediamarkt", "teknosa", "vatan", "amazon", "pazarama", "ciceksepeti", "boyner"].includes(store) || !title || !target || target <= 0) {
     return res.status(400).json({ ok: false, error: "Mağaza, ürün ve geçerli hedef fiyat gerekli." });
   }
 
